@@ -1,0 +1,1501 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChronosPlan — Planejador Semanal de Rotina</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* Estilos de barras de rolagem suaves */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.4); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(107, 114, 128, 0.7); }
+    
+    /* Grade com linhas de 15 minutos / hora */
+    .time-slot-grid {
+      background-size: 100% 60px;
+      background-image: linear-gradient(to bottom, rgba(229, 231, 235, 0.4) 1px, transparent 1px);
+    }
+    .dark .time-slot-grid {
+      background-image: linear-gradient(to bottom, rgba(55, 65, 81, 0.3) 1px, transparent 1px);
+    }
+
+    .ghost-select {
+      background-color: rgba(14, 165, 233, 0.15);
+      border: 1px dashed #0284c7;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans flex flex-col transition-colors duration-200 antialiased selection:bg-sky-500 selection:text-white">
+
+  <!-- ==================== NAVEGAÇÃO / CABEÇALHO ==================== -->
+  <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 flex-shrink-0 shadow-sm">
+    <div class="max-w-[1700px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      
+      <!-- Marca & Controles de Data -->
+      <div class="flex items-center gap-3 md:gap-6">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <span class="font-bold text-lg tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent hidden sm:inline">ChronosPlan</span>
+        </div>
+
+        <div class="h-5 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
+
+        <!-- Seletor de Semana -->
+        <div class="flex items-center gap-1.5">
+          <button id="btnPrevWeek" title="Semana anterior" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <button id="btnToday" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors">Hoje</button>
+          <button id="btnNextWeek" title="Próxima semana" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </button>
+          
+          <div class="relative ml-2">
+            <span id="currentWeekLabel" class="text-sm font-semibold text-slate-800 dark:text-slate-200 cursor-pointer hover:text-sky-600 dark:hover:text-sky-400 transition-colors">--</span>
+            <input type="date" id="datePickerInput" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+          </div>
+        </div>
+      </div>
+
+      <!-- Pesquisa & Filtros Rápidos -->
+      <div class="flex-1 max-w-md hidden md:flex items-center gap-2">
+        <div class="relative w-full">
+          <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input type="text" id="searchInput" placeholder="Buscar compromisso, local ou categoria... (F)" class="w-full pl-9 pr-4 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-transparent focus:border-sky-500 dark:focus:border-sky-500 focus:bg-white dark:focus:bg-slate-900 outline-none transition-all">
+        </div>
+      </div>
+
+      <!-- Ações Diretas & Menu de Opções -->
+      <div class="flex items-center gap-2">
+        <button id="btnNewActivity" class="flex items-center gap-2 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-sky-600/20 active:scale-95 transition-all">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+          <span>Nova Atividade</span>
+        </button>
+
+        <!-- Menu Dropdown de Opções -->
+        <div class="relative">
+          <button id="btnMoreMenu" aria-label="Menu de opções" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/></svg>
+          </button>
+          
+          <div id="dropdownMenu" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl py-2 z-50 text-xs">
+            <div class="px-3 py-1.5 text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">Aparência</div>
+            <button id="btnThemeToggle" class="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800/80 flex items-center justify-between">
+              <span>Tema: <strong id="themeLabel" class="font-semibold text-sky-600 dark:text-sky-400">Sistema</strong></span>
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+            </button>
+
+            <div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>
+            <div class="px-3 py-1.5 text-[10px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase">Dados</div>
+            <button id="btnExportData" class="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800/80 flex items-center gap-2">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <span>Exportar Backup (JSON)</span>
+            </button>
+            <label class="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800/80 flex items-center gap-2 cursor-pointer">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              <span>Importar Backup</span>
+              <input type="file" id="importFileInput" accept=".json" class="hidden">
+            </label>
+            <button id="btnLoadSample" class="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800/80 flex items-center gap-2 text-sky-600 dark:hover:text-sky-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+              <span>Carregar Rotina de Exemplo</span>
+            </button>
+
+            <div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>
+            <button id="btnShortcutsHelp" class="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800/80 flex items-center justify-between">
+              <span>Atalhos de Teclado</span>
+              <span class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-[10px] font-mono">?</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Barra de Filtros Secundária (Filtros Rápidos) -->
+    <div class="max-w-[1700px] mx-auto px-4 sm:px-6 py-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-4 overflow-x-auto no-scrollbar text-xs">
+      <div id="categoryFilterContainer" class="flex items-center gap-1.5 flex-nowrap">
+        <!-- Filtros injetados via JS -->
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <label class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 cursor-pointer select-none">
+          <input type="checkbox" id="filterHighPriority" class="rounded border-slate-300 dark:border-slate-700 text-sky-600 focus:ring-sky-500">
+          <span>Somente Alta Prioridade</span>
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== CORPO PRINCIPAL DO SISTEMA ==================== -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- BARRA LATERAL (DASHBOARD & INBOX) -->
+    <aside id="sidebar" class="w-80 lg:w-96 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col flex-shrink-0 transition-all duration-300 z-20 overflow-y-auto">
+      <div class="p-4 sm:p-5 space-y-6">
+        
+        <!-- CARD: MINHA SEMANA / TEMPO LIVRE DE PRIMEIRA CLASSE -->
+        <section class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-4 shadow-lg shadow-slate-900/10 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Carga da Semana</span>
+            <span id="workloadBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30">Equilibrada</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 pt-1">
+            <div class="bg-white/5 rounded-xl p-2.5 border border-white/10">
+              <span class="text-[10px] text-slate-400 block font-medium">Tempo Planejado</span>
+              <span id="totalPlannedHours" class="text-lg font-bold text-white tracking-tight">0h</span>
+            </div>
+            <div class="bg-white/5 rounded-xl p-2.5 border border-white/10">
+              <span class="text-[10px] text-emerald-400 block font-medium">Tempo Livre Total</span>
+              <span id="totalFreeHours" class="text-lg font-bold text-emerald-300 tracking-tight">0h</span>
+            </div>
+          </div>
+
+          <!-- Destaque de Janela Livre -->
+          <div id="nextFreeWindowCard" class="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2.5 flex items-center gap-2.5">
+            <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+            <div class="text-xs text-emerald-200">
+              <span class="font-semibold block text-[11px] text-emerald-400">Tempo Livre Hoje: <span id="todayFreeHoursLabel">0h</span></span>
+              <span id="nextFreeWindowText" class="text-[10px] text-emerald-300/80">Calculando janelas...</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- CATEGORIAS & DISTRIBUIÇÃO DE HORAS -->
+        <section class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Distribuição por Categoria</h3>
+          </div>
+          <div id="categoryStatsContainer" class="space-y-2">
+            <!-- Injetado via JS -->
+          </div>
+        </section>
+
+        <!-- METAS DA SEMANA (ISOLADAS POR SEMANA) -->
+        <section class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Metas da Semana</h3>
+              <p id="goalsProgressLabel" class="text-[11px] text-slate-500 dark:text-slate-400">0/0 concluídas</p>
+            </div>
+            <button id="btnAddGoal" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-sky-600 dark:text-sky-400 transition-colors" title="Adicionar Meta">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            </button>
+          </div>
+
+          <!-- Barra de Progresso das Metas -->
+          <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+            <div id="goalsProgressBar" class="bg-sky-500 h-full w-0 transition-all duration-300"></div>
+          </div>
+
+          <div id="goalsList" class="space-y-1.5">
+            <!-- Injetado via JS -->
+          </div>
+        </section>
+
+        <!-- CAIXA DE ENTRADA (INBOX / RASCUNHOS ARRASTÁVEIS) -->
+        <section class="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Caixa de Entrada (Inbox)</h3>
+              <p class="text-[10px] text-slate-400">Arraste tarefas para a grade para agendá-las</p>
+            </div>
+          </div>
+
+          <form id="formAddInbox" class="flex items-center gap-1.5">
+            <input type="text" id="inputInboxTitle" placeholder="Nova tarefa rápida..." required class="flex-1 px-3 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-transparent focus:border-sky-500 outline-none">
+            <button type="submit" class="px-3 py-1.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl transition-colors">+</button>
+          </form>
+
+          <div id="inboxList" class="space-y-1.5">
+            <!-- Injetado via JS -->
+          </div>
+        </section>
+
+      </div>
+    </aside>
+
+    <!-- ÁREA PRINCIPAL: GRADE SEMANAL / DIÁRIA DA ROTINA -->
+    <main class="flex-1 flex flex-col min-w-0 bg-slate-100/50 dark:bg-slate-950 overflow-hidden">
+      
+      <!-- ABAS MOBILE (Exibido apenas em telas pequenas para trocar de dia) -->
+      <div id="mobileDayTabs" class="md:hidden flex items-center bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar flex-shrink-0">
+        <!-- Injetado via JS -->
+      </div>
+
+      <!-- CABEÇALHO DA GRADE (DIAS DA SEMANA) -->
+      <div class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex flex-shrink-0 z-10 shadow-sm">
+        <!-- Coluna de Horas Fixo -->
+        <div class="w-14 sm:w-16 flex-shrink-0 py-3 text-center border-r border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 uppercase">
+          Hora
+        </div>
+
+        <!-- Grade de Dias -->
+        <div id="weekDaysHeaderGrid" class="flex-1 grid grid-cols-1 md:grid-cols-7 divide-x divide-slate-200 dark:divide-slate-800">
+          <!-- Injetado via JS -->
+        </div>
+      </div>
+
+      <!-- CORPO DA GRADE (HORÁRIOS ROLÁVEIS) -->
+      <div id="gridScrollContainer" class="flex-1 overflow-y-auto relative flex">
+        
+        <!-- Coluna de Rótulos de Horas -->
+        <div id="timeLabelsColumn" class="w-14 sm:w-16 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 select-none">
+          <!-- Injetado via JS -->
+        </div>
+
+        <!-- Grade Principal dos Dias -->
+        <div id="weekBodyGrid" class="flex-1 grid grid-cols-1 md:grid-cols-7 divide-x divide-slate-200 dark:divide-slate-800 relative time-slot-grid">
+          <!-- Indicador Vermelho de Horário Atual -->
+          <div id="currentTimeIndicator" class="absolute left-0 right-0 z-20 pointer-events-none hidden flex items-center">
+            <div class="w-2.5 h-2.5 rounded-full bg-rose-500 -ml-1.5 shadow-sm"></div>
+            <div class="flex-1 h-0.5 bg-rose-500"></div>
+          </div>
+
+          <!-- Colunas dos Dias Injetadas via JS -->
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ==================== MODAIS & OVERLAYS ==================== -->
+
+  <!-- MODAL DE CRIAÇÃO RÁPIDA -->
+  <div id="quickModal" class="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4 animate-in fade-in zoom-in duration-150">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-sm text-slate-900 dark:text-white">Criar Atividade</h3>
+        <button class="btnCloseQuickModal text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">&times;</button>
+      </div>
+
+      <form id="formQuickCreate" class="space-y-3">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">Título</label>
+          <input type="text" id="quickTitle" placeholder="Ex: Treino de Pernas" required class="w-full px-3 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">Início</label>
+            <input type="time" id="quickStart" required class="w-full px-2.5 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 mb-1">Fim</label>
+            <input type="time" id="quickEnd" required class="w-full px-2.5 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">Categoria</label>
+          <select id="quickCategory" class="w-full px-2.5 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+            <!-- Injetado via JS -->
+          </select>
+        </div>
+
+        <div class="pt-2 flex items-center justify-between gap-2">
+          <button type="button" id="btnQuickMoreDetails" class="text-xs font-semibold text-sky-600 dark:text-sky-400 hover:underline">Mais detalhes...</button>
+          <div class="flex items-center gap-2">
+            <button type="button" class="btnCloseQuickModal px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl">Cancelar</button>
+            <button type="submit" class="px-4 py-1.5 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white rounded-xl shadow-md shadow-sky-600/20">Salvar</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL DE ATIVIDADE COMPLETO (EDIÇÃO/DETALHES) -->
+  <div id="fullModal" class="fixed inset-0 bg-slate-950/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between">
+        <h3 id="fullModalTitle" class="font-bold text-base text-slate-900 dark:text-white">Detalhes da Atividade</h3>
+        <button id="btnCloseFullModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">&times;</button>
+      </div>
+
+      <form id="formFullActivity" class="space-y-4 text-xs">
+        <input type="hidden" id="fullActivityId">
+
+        <div>
+          <label class="block font-semibold text-slate-500 mb-1">Título da Atividade *</label>
+          <input type="text" id="fullTitle" required placeholder="Ex: Aula de Cálculo" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-500 mb-1">Categoria</label>
+            <select id="fullCategory" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+              <!-- JS -->
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-500 mb-1">Prioridade</label>
+            <select id="fullPriority" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+              <option value="low">Baixa</option>
+              <option value="medium" selected>Média</option>
+              <option value="high">Alta</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="block font-semibold text-slate-500 mb-1">Data</label>
+            <input type="date" id="fullDate" required class="w-full px-2 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-500 mb-1">Início</label>
+            <input type="time" id="fullStart" required class="w-full px-2 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-500 mb-1">Término</label>
+            <input type="time" id="fullEnd" required class="w-full px-2 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+          </div>
+        </div>
+
+        <!-- RECORRÊNCIA CONSISTENTE -->
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="font-semibold text-slate-700 dark:text-slate-300">Repetir Atividade?</label>
+            <input type="checkbox" id="fullIsRecurrent" class="rounded text-sky-600 focus:ring-sky-500">
+          </div>
+
+          <div id="recurrentOptions" class="hidden space-y-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+            <div>
+              <label class="block font-semibold text-slate-500 mb-1">Frequência</label>
+              <select id="fullRecurrenceFreq" class="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                <option value="daily">Todos os dias</option>
+                <option value="workdays">Dias úteis (Segunda a Sexta)</option>
+                <option value="weekly">Semanalmente neste dia</option>
+                <option value="custom">Personalizado (Seg / Qua / Sex)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-500 mb-1">Repetir até</label>
+              <input type="date" id="fullRecurrenceUntil" class="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-500 mb-1">Localização (opcional)</label>
+            <input type="text" id="fullLocation" placeholder="Ex: Sala 204" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+          </div>
+          <div class="flex items-center pt-5">
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" id="fullCompleted" class="rounded text-emerald-600 focus:ring-emerald-500">
+              <span class="font-semibold text-slate-700 dark:text-slate-300">Marcar como Concluída</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-500 mb-1">Descrição / Observações</label>
+          <textarea id="fullDescription" rows="2" placeholder="Anotações importantes..." class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none"></textarea>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <button type="button" id="btnDeleteActivity" class="px-3 py-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl font-semibold hidden">Excluir</button>
+          <div class="flex items-center gap-2 ml-auto">
+            <button type="button" id="btnDuplicateActivity" class="px-3 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-semibold hidden">Duplicar</button>
+            <button type="submit" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl shadow-md shadow-sky-600/20">Salvar Alterações</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL PARA ADICIONAR/EDITAR META DA SEMANA -->
+  <div id="goalModal" class="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
+      <h3 class="font-bold text-sm text-slate-900 dark:text-white">Meta da Semana</h3>
+      <form id="formGoal" class="space-y-3">
+        <input type="hidden" id="goalId">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">Descrição da Meta</label>
+          <input type="text" id="goalTitle" placeholder="Ex: Estudar 10 horas de Cálculo" required class="w-full px-3 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-500 mb-1">Prioridade</label>
+          <select id="goalPriority" class="w-full px-2.5 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-sky-500 outline-none">
+            <option value="low">Baixa</option>
+            <option value="medium" selected>Média</option>
+            <option value="high">Alta</option>
+          </select>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" id="btnCloseGoalModal" class="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl">Cancelar</button>
+          <button type="submit" class="px-4 py-1.5 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white rounded-xl shadow-md">Salvar Meta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL DE ATALHOS DE TECLADO -->
+  <div id="shortcutsModal" class="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-sm text-slate-900 dark:text-white">Atalhos do Teclado</h3>
+        <button id="btnCloseShortcutsModal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">&times;</button>
+      </div>
+      <div class="space-y-2 text-xs">
+        <div class="flex justify-between items-center"><span class="text-slate-600 dark:text-slate-400">Nova Atividade</span> <kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[10px]">N</kbd></div>
+        <div class="flex justify-between items-center"><span class="text-slate-600 dark:text-slate-400">Ir para Hoje</span> <kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[10px]">T</kbd></div>
+        <div class="flex justify-between items-center"><span class="text-slate-600 dark:text-slate-400">Focar Busca</span> <kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[10px]">F</kbd></div>
+        <div class="flex justify-between items-center"><span class="text-slate-600 dark:text-slate-400">Alternar Tema</span> <kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[10px]">D</kbd></div>
+        <div class="flex justify-between items-center"><span class="text-slate-600 dark:text-slate-400">Desfazer ação</span> <kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[10px]">Ctrl + Z</kbd></div>
+        <div class="flex justify-between items-center"><span class="text-slate-600 dark:text-slate-400">Fechar Janelas</span> <kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[10px]">Esc</kbd></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST DE NOTIFICAÇÃO & DESFAZER (UNDO) -->
+  <div id="toastNotification" class="fixed bottom-5 right-5 z-50 hidden flex items-center gap-3 bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-3 rounded-2xl shadow-2xl border border-slate-800 dark:border-slate-200 text-xs transition-all transform translate-y-2">
+    <span id="toastMessage">Alteração salva.</span>
+    <button id="btnUndoToast" class="font-bold text-sky-400 dark:text-sky-600 hover:underline">Desfazer</button>
+  </div>
+
+
+  <!-- ==================== LÓGICA E ARQUITETURA JS ==================== -->
+  <script>
+    /**
+     * ChronosPlan — Módulo Principal de Aplicação
+     */
+
+    // --- CATEGORIAS PADRÃO ---
+    const DEFAULT_CATEGORIES = [
+      { id: 'cat_trabalho', name: 'Trabalho', color: '#6366f1', bgLight: 'bg-indigo-50 border-indigo-200 text-indigo-800', bgDark: 'dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-200' },
+      { id: 'cat_estudos', name: 'Estudos', color: '#8b5cf6', bgLight: 'bg-purple-50 border-purple-200 text-purple-800', bgDark: 'dark:bg-purple-950/40 dark:border-purple-800 dark:text-purple-200' },
+      { id: 'cat_exercicios', name: 'Exercícios', color: '#10b981', bgLight: 'bg-emerald-50 border-emerald-200 text-emerald-800', bgDark: 'dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-200' },
+      { id: 'cat_compromissos', name: 'Compromissos', color: '#f59e0b', bgLight: 'bg-amber-50 border-amber-200 text-amber-800', bgDark: 'dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-200' },
+      { id: 'cat_pessoal', name: 'Pessoal', color: '#f43f5e', bgLight: 'bg-rose-50 border-rose-200 text-rose-800', bgDark: 'dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-200' },
+      { id: 'cat_lazer', name: 'Lazer', color: '#0ea5e9', bgLight: 'bg-sky-50 border-sky-200 text-sky-800', bgDark: 'dark:bg-sky-950/40 dark:border-sky-800 dark:text-sky-200' }
+    ];
+
+    // --- ESTADO GLOBAL DA APLICAÇÃO ---
+    const state = {
+      currentDate: new Date(),
+      selectedMobileDayIndex: 0, // 0 = Seg, 6 = Dom
+      activities: [],
+      weeklyGoals: {}, // { "2026-W39": [...] }
+      inbox: [],
+      categories: DEFAULT_CATEGORIES,
+      preferences: {
+        theme: 'system',
+        startHour: 6,
+        endHour: 23
+      },
+      filters: {
+        search: '',
+        category: null,
+        onlyHighPriority: false
+      },
+      undoStack: []
+    };
+
+    // --- GERENCIADOR DE PERSISTÊNCIA & STORAGE ---
+    const Storage = {
+      KEY: 'chronos_plan_v2_data',
+      save() {
+        localStorage.setItem(this.KEY, JSON.stringify({
+          activities: state.activities,
+          weeklyGoals: state.weeklyGoals,
+          inbox: state.inbox,
+          categories: state.categories,
+          preferences: state.preferences
+        }));
+      },
+      load() {
+        const raw = localStorage.getItem(this.KEY);
+        if (!raw) return false;
+        try {
+          const data = JSON.parse(raw);
+          if (data.activities) state.activities = data.activities;
+          if (data.weeklyGoals) state.weeklyGoals = data.weeklyGoals;
+          if (data.inbox) state.inbox = data.inbox;
+          if (data.categories) state.categories = data.categories;
+          if (data.preferences) state.preferences = Object.assign(state.preferences, data.preferences);
+          return true;
+        } catch (e) {
+          console.error("Erro ao carregar dados:", e);
+          return false;
+        }
+      }
+    };
+
+    // --- MOTORES DE DATA E RECORRÊNCIA ---
+    const DateUtils = {
+      // Retorna a Segunda-Feira da semana de uma data
+      getStartOfWeek(d) {
+        const date = new Date(d);
+        const day = date.getDay();
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+        return new Date(date.setDate(diff));
+      },
+      // Retorna a chave de semana ISO (ex: "2026-W39")
+      getWeekKey(d) {
+        const start = this.getStartOfWeek(d);
+        const year = start.getFullYear();
+        const firstJan = new Date(year, 0, 1);
+        const days = Math.floor((start - firstJan) / (24 * 60 * 60 * 1000));
+        const weekNum = Math.ceil((days + firstJan.getDay() + 1) / 7);
+        return `${year}-W${String(weekNum).padStart(2, '0')}`;
+      },
+      formatDateISO(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      },
+      timeToMinutes(timeStr) {
+        if (!timeStr) return 0;
+        const [h, m] = timeStr.split(':').map(Number);
+        return h * 60 + m;
+      },
+      minutesToTime(mins) {
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      }
+    };
+
+    // --- GERENCIADOR DE DESFAZER (UNDO) ---
+    const UndoManager = {
+      pushState(msg = 'Alteração salva.') {
+        state.undoStack.push({
+          snapshot: JSON.stringify({
+            activities: state.activities,
+            weeklyGoals: state.weeklyGoals,
+            inbox: state.inbox
+          }),
+          message: msg
+        });
+        if (state.undoStack.length > 15) state.undoStack.shift();
+        this.showToast(msg);
+      },
+      undo() {
+        if (state.undoStack.length === 0) return;
+        const last = state.undoStack.pop();
+        const data = JSON.parse(last.snapshot);
+        state.activities = data.activities;
+        state.weeklyGoals = data.weeklyGoals;
+        state.inbox = data.inbox;
+        Storage.save();
+        App.renderAll();
+        this.hideToast();
+      },
+      showToast(msg) {
+        const toast = document.getElementById('toastNotification');
+        document.getElementById('toastMessage').textContent = msg;
+        toast.classList.remove('hidden');
+      },
+      hideToast() {
+        document.getElementById('toastNotification').classList.add('hidden');
+      }
+    };
+
+    // --- MATERIALIZADOR DE ATIVIDADES SEMANAIS ---
+    function getMaterializedActivitiesForWeek(startOfWeek) {
+      const materialized = [];
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(endOfWeek.getDate() + 6);
+
+      const startDateISO = DateUtils.formatDateISO(startOfWeek);
+      const endDateISO = DateUtils.formatDateISO(endOfWeek);
+
+      state.activities.forEach(act => {
+        if (!act.isRecurrent) {
+          if (act.date >= startDateISO && act.date <= endDateISO) {
+            materialized.push({ ...act, materializedDate: act.date });
+          }
+        } else {
+          // Tratar Recorrência
+          for (let i = 0; i < 7; i++) {
+            const currentDay = new Date(startOfWeek);
+            currentDay.setDate(currentDay.getDate() + i);
+            const currentISO = DateUtils.formatDateISO(currentDay);
+
+            if (act.date > currentISO) continue; // Ainda não começou
+            if (act.recurrence && act.recurrence.until && currentISO > act.recurrence.until) continue;
+
+            let matches = false;
+            const dayOfWeek = currentDay.getDay(); // 0=Dom, 1=Seg...
+            const freq = act.recurrence ? act.recurrence.freq : 'weekly';
+
+            if (freq === 'daily') matches = true;
+            else if (freq === 'workdays' && dayOfWeek >= 1 && dayOfWeek <= 5) matches = true;
+            else if (freq === 'weekly' && dayOfWeek === (new Date(act.date + 'T00:00:00').getDay())) matches = true;
+            else if (freq === 'custom' && act.recurrence.daysOfWeek && act.recurrence.daysOfWeek.includes(dayOfWeek)) matches = true;
+
+            if (matches) {
+              materialized.push({
+                ...act,
+                materializedDate: currentISO,
+                instanceKey: `${act.id}_${currentISO}`
+              });
+            }
+          }
+        }
+      });
+
+      // Aplicação de Filtros Rápidos (Busca, Categoria, Prioridade)
+      return materialized.filter(act => {
+        if (state.filters.search) {
+          const q = state.filters.search.toLowerCase();
+          const matchTitle = act.title.toLowerCase().includes(q);
+          const matchLoc = (act.location || '').toLowerCase().includes(q);
+          const matchDesc = (act.description || '').toLowerCase().includes(q);
+          if (!matchTitle && !matchLoc && !matchDesc) return false;
+        }
+        if (state.filters.category && act.categoryId !== state.filters.category) return false;
+        if (state.filters.onlyHighPriority && act.priority !== 'high') return false;
+        return true;
+      });
+    }
+
+    // --- CONTROLADOR DA INTERFACE DE USUÁRIO (UI) ---
+    const App = {
+      init() {
+        Storage.load();
+        this.applyTheme(state.preferences.theme);
+        this.bindEvents();
+
+        // Se não houver atividades, carrega exemplo
+        if (state.activities.length === 0) {
+          this.loadSampleData(false);
+        }
+
+        // Definir dia atual mobile
+        const todayDayIndex = (new Date().getDay() + 6) % 7;
+        state.selectedMobileDayIndex = todayDayIndex;
+
+        this.renderAll();
+        
+        // Atualizador da Linha do Tempo
+        setInterval(() => this.updateCurrentTimeIndicator(), 60000);
+      },
+
+      renderAll() {
+        this.renderHeaderDates();
+        this.renderFilterBar();
+        this.renderGrid();
+        this.renderSidebar();
+        this.updateCurrentTimeIndicator();
+      },
+
+      renderHeaderDates() {
+        const startOfWeek = DateUtils.getStartOfWeek(state.currentDate);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(endOfWeek.getDate() + 6);
+
+        const label = `${startOfWeek.getDate()} ${startOfWeek.toLocaleString('pt-BR', { month: 'short' })} - ${endOfWeek.getDate()} ${endOfWeek.toLocaleString('pt-BR', { month: 'short' })} ${startOfWeek.getFullYear()}`;
+        document.getElementById('currentWeekLabel').textContent = label;
+      },
+
+      renderFilterBar() {
+        const container = document.getElementById('categoryFilterContainer');
+        container.innerHTML = `
+          <button data-cat="" class="btn-filter px-3 py-1 rounded-full border text-[11px] font-semibold transition-all ${!state.filters.category ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'}">Todas</button>
+        `;
+
+        state.categories.forEach(cat => {
+          const isActive = state.filters.category === cat.id;
+          const btn = document.createElement('button');
+          btn.dataset.cat = cat.id;
+          btn.className = `btn-filter px-2.5 py-1 rounded-full border text-[11px] font-semibold transition-all flex items-center gap-1.5 ${isActive ? 'ring-2 ring-sky-500 border-transparent text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'}`;
+          if (isActive) btn.style.backgroundColor = cat.color;
+          
+          btn.innerHTML = `
+            <span class="w-2 h-2 rounded-full" style="background-color: ${cat.color}"></span>
+            <span>${cat.name}</span>
+          `;
+          container.appendChild(btn);
+        });
+      },
+
+      renderGrid() {
+        const startOfWeek = DateUtils.getStartOfWeek(state.currentDate);
+        const headerGrid = document.getElementById('weekDaysHeaderGrid');
+        const bodyGrid = document.getElementById('weekBodyGrid');
+        const labelsCol = document.getElementById('timeLabelsColumn');
+        const mobileTabs = document.getElementById('mobileDayTabs');
+
+        headerGrid.innerHTML = '';
+        bodyGrid.innerHTML = '';
+        labelsCol.innerHTML = '';
+        mobileTabs.innerHTML = '';
+
+        // Manter o indicador de tempo atual
+        const indicator = document.createElement('div');
+        indicator.id = 'currentTimeIndicator';
+        indicator.className = 'absolute left-0 right-0 z-20 pointer-events-none hidden flex items-center';
+        indicator.innerHTML = '<div class="w-2.5 h-2.5 rounded-full bg-rose-500 -ml-1.5 shadow-sm"></div><div class="flex-1 h-0.5 bg-rose-500"></div>';
+        bodyGrid.appendChild(indicator);
+
+        const daysNames = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+        const materialized = getMaterializedActivitiesForWeek(startOfWeek);
+
+        // Renderizar Rótulos de Horas (06:00 - 23:00)
+        for (let h = state.preferences.startHour; h <= state.preferences.endHour; h++) {
+          const hourLabel = document.createElement('div');
+          hourLabel.className = 'h-[60px] text-[10px] font-semibold text-slate-400 dark:text-slate-500 pr-2 pt-1 text-right select-none border-b border-slate-100 dark:border-slate-800/50';
+          hourLabel.textContent = `${String(h).padStart(2, '0')}:00`;
+          labelsCol.appendChild(hourLabel);
+        }
+
+        // Renderizar 7 Dias
+        for (let i = 0; i < 7; i++) {
+          const dayDate = new Date(startOfWeek);
+          dayDate.setDate(dayDate.getDate() + i);
+          const dayISO = DateUtils.formatDateISO(dayDate);
+          const isToday = dayISO === DateUtils.formatDateISO(new Date());
+
+          // --- Abas Mobile ---
+          const mobileTab = document.createElement('button');
+          mobileTab.className = `flex-1 py-2 px-1 text-center text-xs font-semibold border-b-2 transition-all ${state.selectedMobileDayIndex === i ? 'border-sky-600 text-sky-600 dark:text-sky-400 bg-sky-50/50 dark:bg-sky-950/30' : 'border-transparent text-slate-500 hover:text-slate-800'}`;
+          mobileTab.innerHTML = `<div>${daysNames[i].substring(0,3)}</div><div class="text-[10px] font-normal">${dayDate.getDate()}</div>`;
+          mobileTab.onclick = () => {
+            state.selectedMobileDayIndex = i;
+            App.renderGrid();
+          };
+          mobileTabs.appendChild(mobileTab);
+
+          // --- Cabeçalho da Coluna no Desktop ---
+          const dayHeader = document.createElement('div');
+          const isMobileVisible = state.selectedMobileDayIndex === i;
+          dayHeader.className = `p-2.5 text-center transition-colors ${!isMobileVisible ? 'hidden md:block' : ''} ${isToday ? 'bg-sky-50/60 dark:bg-sky-950/20' : ''}`;
+          dayHeader.innerHTML = `
+            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">${daysNames[i]}</div>
+            <div class="inline-flex items-center justify-center w-7 h-7 mt-0.5 rounded-full text-xs font-bold ${isToday ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30' : 'text-slate-800 dark:text-slate-200'}">
+              ${dayDate.getDate()}
+            </div>
+          `;
+          headerGrid.appendChild(dayHeader);
+
+          // --- Coluna do Dia no Corpo ---
+          const dayCol = document.createElement('div');
+          dayCol.className = `relative day-column min-h-[1080px] ${!isMobileVisible ? 'hidden md:block' : ''} ${isToday ? 'bg-sky-50/10 dark:bg-sky-950/10' : ''}`;
+          dayCol.dataset.date = dayISO;
+
+          // Evento de clique / seleção na grade
+          dayCol.onclick = (e) => {
+            if (e.target.closest('.activity-card')) return;
+            const rect = dayCol.getBoundingClientRect();
+            const offsetY = e.clientY - rect.top;
+            const totalMins = Math.floor(offsetY / 60) * 60 + state.preferences.startHour * 60;
+            const snappedStart = Math.floor(totalMins / 15) * 15;
+            const snappedEnd = snappedStart + 60;
+
+            App.openQuickModal({
+              date: dayISO,
+              startTime: DateUtils.minutesToTime(snappedStart),
+              endTime: DateUtils.minutesToTime(snappedEnd)
+            });
+          };
+
+          // Permitir Soltar Tarefa da Inbox (Drop Target)
+          dayCol.ondragover = (e) => e.preventDefault();
+          dayCol.ondrop = (e) => {
+            e.preventDefault();
+            const rawData = e.dataTransfer.getData('text/plain');
+            if (!rawData) return;
+            try {
+              const item = JSON.parse(rawData);
+              if (item.type === 'inbox') {
+                const rect = dayCol.getBoundingClientRect();
+                const offsetY = e.clientY - rect.top;
+                const startMins = Math.floor((offsetY / 60) * 60) + state.preferences.startHour * 60;
+                const snappedStart = Math.floor(startMins / 15) * 15;
+
+                UndoManager.pushState('Tarefa da Inbox agendada na rotina.');
+                
+                // Remover da Inbox e criar atividade
+                state.inbox = state.inbox.filter(x => x.id !== item.id);
+                state.activities.push({
+                  id: 'act_' + Date.now(),
+                  title: item.title,
+                  categoryId: item.categoryId || state.categories[0].id,
+                  date: dayISO,
+                  startTime: DateUtils.minutesToTime(snappedStart),
+                  endTime: DateUtils.minutesToTime(snappedStart + 60),
+                  priority: item.priority || 'medium',
+                  completed: false,
+                  isRecurrent: false
+                });
+
+                Storage.save();
+                App.renderAll();
+              }
+            } catch(err) { console.error(err); }
+          };
+
+          // Renderizar Cartões de Atividade na Coluna
+          const dayActs = materialized.filter(a => a.materializedDate === dayISO);
+          dayActs.forEach(act => {
+            const card = this.createActivityCard(act);
+            dayCol.appendChild(card);
+          });
+
+          bodyGrid.appendChild(dayCol);
+        }
+      },
+
+      createActivityCard(act) {
+        const cat = state.categories.find(c => c.id === act.categoryId) || state.categories[0];
+        const startMins = DateUtils.timeToMinutes(act.startTime) - state.preferences.startHour * 60;
+        const endMins = DateUtils.timeToMinutes(act.endTime) - state.preferences.startHour * 60;
+        const durationMins = Math.max(endMins - startMins, 15);
+
+        const topPx = (startMins / 60) * 60;
+        const heightPx = (durationMins / 60) * 60;
+
+        const card = document.createElement('div');
+        card.className = `activity-card absolute left-1 right-1 rounded-xl p-2 text-xs border shadow-xs overflow-hidden cursor-pointer transition-all hover:shadow-md hover:z-30 select-none ${act.completed ? 'opacity-60 line-through' : ''}`;
+        card.style.top = `${topPx}px`;
+        card.style.height = `${heightPx}px`;
+        card.style.borderLeftWidth = '4px';
+        card.style.borderLeftColor = cat.color;
+        card.style.backgroundColor = cat.color + '15';
+
+        const priorityDot = act.priority === 'high' ? '<span class="w-2 h-2 rounded-full bg-rose-500 inline-block" title="Alta Prioridade"></span>' : '';
+        const recurIcon = act.isRecurrent ? '<svg class="w-3 h-3 text-slate-400 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>' : '';
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between gap-1 font-semibold text-slate-800 dark:text-slate-100 leading-tight">
+            <span class="truncate">${act.title}</span>
+            <div class="flex items-center gap-1 flex-shrink-0">${recurIcon}${priorityDot}</div>
+          </div>
+          <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+            ${act.startTime} - ${act.endTime} ${act.location ? '• ' + act.location : ''}
+          </div>
+        `;
+
+        // Clique para abrir detalhes
+        card.onclick = (e) => {
+          e.stopPropagation();
+          App.openFullModal(act);
+        };
+
+        return card;
+      },
+
+      renderSidebar() {
+        const startOfWeek = DateUtils.getStartOfWeek(state.currentDate);
+        const weekKey = DateUtils.getWeekKey(state.currentDate);
+        const materialized = getMaterializedActivitiesForWeek(startOfWeek);
+
+        // --- 1. Cálculo de Horas Planejadas e Livres ---
+        let totalMinutesPlanned = 0;
+        const categoryMinutes = {};
+
+        materialized.forEach(act => {
+          const dur = DateUtils.timeToMinutes(act.endTime) - DateUtils.timeToMinutes(act.startTime);
+          if (dur > 0) {
+            totalMinutesPlanned += dur;
+            categoryMinutes[act.categoryId] = (categoryMinutes[act.categoryId] || 0) + dur;
+          }
+        });
+
+        const totalPlannedHours = (totalMinutesPlanned / 60).toFixed(1);
+        const totalFreeMinutes = (7 * 17 * 60) - totalMinutesPlanned; // 17 horas ativas por dia (6h as 23h)
+        const totalFreeHours = Math.max(0, (totalFreeMinutes / 60)).toFixed(1);
+
+        document.getElementById('totalPlannedHours').textContent = `${totalPlannedHours}h`;
+        document.getElementById('totalFreeHours').textContent = `${totalFreeHours}h`;
+
+        // Indicador de Carga da Semana
+        const badge = document.getElementById('workloadBadge');
+        if (totalPlannedHours < 20) {
+          badge.textContent = 'Leve'; badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30';
+        } else if (totalPlannedHours < 40) {
+          badge.textContent = 'Equilibrada'; badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-400/30';
+        } else {
+          badge.textContent = 'Intensa'; badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-400/30';
+        }
+
+        // Horas Livres Hoje
+        const todayISO = DateUtils.formatDateISO(new Date());
+        const todayActs = materialized.filter(a => a.materializedDate === todayISO);
+        let todayMinsPlanned = 0;
+        todayActs.forEach(a => todayMinsPlanned += (DateUtils.timeToMinutes(a.endTime) - DateUtils.timeToMinutes(a.startTime)));
+        const todayFreeMins = Math.max(0, (17 * 60) - todayMinsPlanned);
+        document.getElementById('todayFreeHoursLabel').textContent = `${(todayFreeMins / 60).toFixed(1)}h`;
+        document.getElementById('nextFreeWindowText').textContent = 'Grande janela livre disponível após as 14:00';
+
+        // --- 2. Renderizar Estatísticas por Categoria ---
+        const catContainer = document.getElementById('categoryStatsContainer');
+        catContainer.innerHTML = '';
+
+        state.categories.forEach(cat => {
+          const mins = categoryMinutes[cat.id] || 0;
+          const hrs = (mins / 60).toFixed(1);
+          const pct = totalMinutesPlanned > 0 ? Math.min(100, Math.round((mins / totalMinutesPlanned) * 100)) : 0;
+
+          const row = document.createElement('div');
+          row.className = 'space-y-1 text-xs';
+          row.innerHTML = `
+            <div class="flex items-center justify-between text-slate-700 dark:text-slate-300 font-medium">
+              <div class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${cat.color}"></span>
+                <span>${cat.name}</span>
+              </div>
+              <span class="font-bold">${hrs}h <span class="text-[10px] text-slate-400 font-normal">(${pct}%)</span></span>
+            </div>
+            <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div class="h-full rounded-full transition-all duration-300" style="width: ${pct}%; background-color: ${cat.color}"></div>
+            </div>
+          `;
+          catContainer.appendChild(row);
+        });
+
+        // --- 3. Renderizar Metas da Semana (Indexadas por ISO Week) ---
+        const goalsList = document.getElementById('goalsList');
+        goalsList.innerHTML = '';
+
+        const currentGoals = state.weeklyGoals[weekKey] || [];
+        const completedGoals = currentGoals.filter(g => g.completed).length;
+        const totalGoals = currentGoals.length;
+        const goalsPct = totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : 0;
+
+        document.getElementById('goalsProgressLabel').textContent = `${completedGoals}/${totalGoals} concluídas`;
+        document.getElementById('goalsProgressBar').style.width = `${goalsPct}%`;
+
+        if (currentGoals.length === 0) {
+          goalsList.innerHTML = '<p class="text-[11px] text-slate-400 italic py-1">Nenhuma meta definida para esta semana.</p>';
+        } else {
+          currentGoals.forEach(g => {
+            const item = document.createElement('div');
+            item.className = 'flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 text-xs group';
+            item.innerHTML = `
+              <label class="flex items-center gap-2 cursor-pointer flex-1">
+                <input type="checkbox" ${g.completed ? 'checked' : ''} class="goal-checkbox rounded text-sky-600 focus:ring-sky-500" data-id="${g.id}">
+                <span class="${g.completed ? 'line-through text-slate-400' : 'text-slate-700 dark:text-slate-200 font-medium'}">${g.title}</span>
+              </label>
+              <button data-id="${g.id}" class="btnDeleteGoal text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">&times;</button>
+            `;
+            goalsList.appendChild(item);
+          });
+        }
+
+        // --- 4. Renderizar Inbox (Rascunhos Arrastáveis) ---
+        const inboxList = document.getElementById('inboxList');
+        inboxList.innerHTML = '';
+
+        if (state.inbox.length === 0) {
+          inboxList.innerHTML = '<p class="text-[11px] text-slate-400 italic py-1">Sua caixa de entrada está vazia.</p>';
+        } else {
+          state.inbox.forEach(item => {
+            const el = document.createElement('div');
+            el.draggable = true;
+            el.className = 'p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs shadow-xs flex items-center justify-between gap-2 cursor-grab active:cursor-grabbing hover:border-sky-400 transition-all group';
+            el.innerHTML = `
+              <div class="flex items-center gap-2 min-w-0">
+                <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/></svg>
+                <span class="truncate font-medium text-slate-700 dark:text-slate-200">${item.title}</span>
+              </div>
+              <button data-id="${item.id}" class="btnDeleteInbox text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">&times;</button>
+            `;
+
+            // Eventos de Drag para agendar na grade
+            el.ondragstart = (e) => {
+              e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'inbox', ...item }));
+            };
+
+            inboxList.appendChild(el);
+          });
+        }
+      },
+
+      updateCurrentTimeIndicator() {
+        const indicator = document.getElementById('currentTimeIndicator');
+        if (!indicator) return;
+
+        const now = new Date();
+        const startOfWeek = DateUtils.getStartOfWeek(state.currentDate);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(endOfWeek.getDate() + 6);
+
+        if (now < startOfWeek || now > endOfWeek) {
+          indicator.classList.add('hidden');
+          return;
+        }
+
+        const currentMins = now.getHours() * 60 + now.getMinutes();
+        const startMins = state.preferences.startHour * 60;
+        const endMins = state.preferences.endHour * 60;
+
+        if (currentMins < startMins || currentMins > endMins) {
+          indicator.classList.add('hidden');
+          return;
+        }
+
+        const topPx = ((currentMins - startMins) / 60) * 60;
+        indicator.style.top = `${topPx}px`;
+        indicator.classList.remove('hidden');
+      },
+
+      // --- MODAIS E EVENTOS ---
+      openQuickModal(data) {
+        document.getElementById('quickTitle').value = '';
+        document.getElementById('quickStart').value = data.startTime || '09:00';
+        document.getElementById('quickEnd').value = data.endTime || '10:00';
+
+        const catSelect = document.getElementById('quickCategory');
+        catSelect.innerHTML = state.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+        const modal = document.getElementById('quickModal');
+        modal.dataset.date = data.date;
+        modal.classList.remove('hidden');
+        document.getElementById('quickTitle').focus();
+      },
+
+      closeQuickModal() {
+        document.getElementById('quickModal').classList.add('hidden');
+      },
+
+      openFullModal(act = null) {
+        this.closeQuickModal();
+
+        const catSelect = document.getElementById('fullCategory');
+        catSelect.innerHTML = state.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+        if (act) {
+          document.getElementById('fullModalTitle').textContent = 'Editar Atividade';
+          document.getElementById('fullActivityId').value = act.id;
+          document.getElementById('fullTitle').value = act.title;
+          document.getElementById('fullCategory').value = act.categoryId;
+          document.getElementById('fullPriority').value = act.priority || 'medium';
+          document.getElementById('fullDate').value = act.materializedDate || act.date;
+          document.getElementById('fullStart').value = act.startTime;
+          document.getElementById('fullEnd').value = act.endTime;
+          document.getElementById('fullLocation').value = act.location || '';
+          document.getElementById('fullDescription').value = act.description || '';
+          document.getElementById('fullCompleted').checked = !!act.completed;
+          
+          document.getElementById('fullIsRecurrent').checked = !!act.isRecurrent;
+          if (act.isRecurrent && act.recurrence) {
+            document.getElementById('recurrentOptions').classList.remove('hidden');
+            document.getElementById('fullRecurrenceFreq').value = act.recurrence.freq || 'weekly';
+            document.getElementById('fullRecurrenceUntil').value = act.recurrence.until || '';
+          } else {
+            document.getElementById('recurrentOptions').classList.add('hidden');
+          }
+
+          document.getElementById('btnDeleteActivity').classList.remove('hidden');
+          document.getElementById('btnDuplicateActivity').classList.remove('hidden');
+        } else {
+          document.getElementById('fullModalTitle').textContent = 'Nova Atividade';
+          document.getElementById('fullActivityId').value = '';
+          document.getElementById('fullTitle').value = '';
+          document.getElementById('fullDate').value = DateUtils.formatDateISO(state.currentDate);
+          document.getElementById('fullStart').value = '09:00';
+          document.getElementById('fullEnd').value = '10:00';
+          document.getElementById('fullLocation').value = '';
+          document.getElementById('fullDescription').value = '';
+          document.getElementById('fullCompleted').checked = false;
+          document.getElementById('fullIsRecurrent').checked = false;
+          document.getElementById('recurrentOptions').classList.add('hidden');
+
+          document.getElementById('btnDeleteActivity').classList.add('hidden');
+          document.getElementById('btnDuplicateActivity').classList.add('hidden');
+        }
+
+        document.getElementById('fullModal').classList.remove('hidden');
+      },
+
+      closeFullModal() {
+        document.getElementById('fullModal').classList.add('hidden');
+      },
+
+      applyTheme(theme) {
+        state.preferences.theme = theme;
+        document.getElementById('themeLabel').textContent = theme === 'dark' ? 'Escuro' : theme === 'light' ? 'Claro' : 'Sistema';
+        
+        if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      },
+
+      loadSampleData(shouldRender = true) {
+        const today = new Date();
+        const start = DateUtils.getStartOfWeek(today);
+
+        const getISO = (offsetDays) => {
+          const d = new Date(start);
+          d.setDate(d.getDate() + offsetDays);
+          return DateUtils.formatDateISO(d);
+        };
+
+        state.activities = [
+          { id: 'sample_1', title: 'Academia & Treino', categoryId: 'cat_exercicios', date: getISO(0), startTime: '07:00', endTime: '08:30', priority: 'high', isRecurrent: true, recurrence: { freq: 'custom', daysOfWeek: [1,3,5] } },
+          { id: 'sample_2', title: 'Trabalho de Cálculo', categoryId: 'cat_estudos', date: getISO(0), startTime: '09:00', endTime: '11:30', priority: 'high', location: 'Biblioteca' },
+          { id: 'sample_3', title: 'Reunião de Equipe', categoryId: 'cat_trabalho', date: getISO(1), startTime: '14:00', endTime: '15:30', priority: 'medium' },
+          { id: 'sample_4', title: 'Curso de JavaScript', categoryId: 'cat_estudos', date: getISO(2), startTime: '19:00', endTime: '21:00', priority: 'high' },
+          { id: 'sample_5', title: 'Jantar com Amigos', categoryId: 'cat_lazer', date: getISO(4), startTime: '20:00', endTime: '22:30', priority: 'low' }
+        ];
+
+        const currentWeekKey = DateUtils.getWeekKey(today);
+        state.weeklyGoals[currentWeekKey] = [
+          { id: 'g_1', title: 'Estudar 10 horas de Engenharia', priority: 'high', completed: true },
+          { id: 'g_2', title: 'Treinar 4 vezes na semana', priority: 'medium', completed: false }
+        ];
+
+        state.inbox = [
+          { id: 'in_1', title: 'Comprar caderno de anotações', priority: 'low' },
+          { id: 'in_2', title: 'Revisar relatório financeiro', priority: 'high' }
+        ];
+
+        Storage.save();
+        if (shouldRender) App.renderAll();
+      },
+
+      bindEvents() {
+        // Controle de Semanas
+        document.getElementById('btnPrevWeek').onclick = () => {
+          state.currentDate.setDate(state.currentDate.getDate() - 7);
+          App.renderAll();
+        };
+        document.getElementById('btnNextWeek').onclick = () => {
+          state.currentDate.setDate(state.currentDate.getDate() + 7);
+          App.renderAll();
+        };
+        document.getElementById('btnToday').onclick = () => {
+          state.currentDate = new Date();
+          App.renderAll();
+        };
+        document.getElementById('datePickerInput').onchange = (e) => {
+          if (e.target.value) {
+            state.currentDate = new Date(e.target.value + 'T00:00:00');
+            App.renderAll();
+          }
+        };
+
+        // Pesquisa
+        document.getElementById('searchInput').oninput = (e) => {
+          state.filters.search = e.target.value;
+          App.renderGrid();
+        };
+
+        // Filtros por Categoria
+        document.getElementById('categoryFilterContainer').onclick = (e) => {
+          const btn = e.target.closest('.btn-filter');
+          if (btn) {
+            state.filters.category = btn.dataset.cat || null;
+            App.renderFilterBar();
+            App.renderGrid();
+          }
+        };
+
+        document.getElementById('filterHighPriority').onchange = (e) => {
+          state.filters.onlyHighPriority = e.target.checked;
+          App.renderGrid();
+        };
+
+        // Botão Nova Atividade
+        document.getElementById('btnNewActivity').onclick = () => App.openFullModal();
+
+        // Modais de Criação Rápida
+        document.querySelectorAll('.btnCloseQuickModal').forEach(b => b.onclick = App.closeQuickModal);
+        document.getElementById('formQuickCreate').onsubmit = (e) => {
+          e.preventDefault();
+          UndoManager.pushState('Atividade criada rapidamente.');
+
+          const modal = document.getElementById('quickModal');
+          state.activities.push({
+            id: 'act_' + Date.now(),
+            title: document.getElementById('quickTitle').value,
+            categoryId: document.getElementById('quickCategory').value,
+            date: modal.dataset.date,
+            startTime: document.getElementById('quickStart').value,
+            endTime: document.getElementById('quickEnd').value,
+            priority: 'medium',
+            completed: false,
+            isRecurrent: false
+          });
+
+          Storage.save();
+          App.closeQuickModal();
+          App.renderAll();
+        };
+
+        document.getElementById('btnQuickMoreDetails').onclick = () => {
+          const title = document.getElementById('quickTitle').value;
+          const start = document.getElementById('quickStart').value;
+          const end = document.getElementById('quickEnd').value;
+          const cat = document.getElementById('quickCategory').value;
+          const modal = document.getElementById('quickModal');
+
+          App.closeQuickModal();
+          App.openFullModal();
+
+          document.getElementById('fullTitle').value = title;
+          document.getElementById('fullStart').value = start;
+          document.getElementById('fullEnd').value = end;
+          document.getElementById('fullCategory').value = cat;
+          document.getElementById('fullDate').value = modal.dataset.date;
+        };
+
+        // Modal Completo de Atividade
+        document.getElementById('btnCloseFullModal').onclick = App.closeFullModal;
+        document.getElementById('fullIsRecurrent').onchange = (e) => {
+          document.getElementById('recurrentOptions').classList.toggle('hidden', !e.target.checked);
+        };
+
+        document.getElementById('formFullActivity').onsubmit = (e) => {
+          e.preventDefault();
+          UndoManager.pushState('Atividade salva.');
+
+          const id = document.getElementById('fullActivityId').value;
+          const isRec = document.getElementById('fullIsRecurrent').checked;
+
+          const actData = {
+            id: id || 'act_' + Date.now(),
+            title: document.getElementById('fullTitle').value,
+            categoryId: document.getElementById('fullCategory').value,
+            priority: document.getElementById('fullPriority').value,
+            date: document.getElementById('fullDate').value,
+            startTime: document.getElementById('fullStart').value,
+            endTime: document.getElementById('fullEnd').value,
+            location: document.getElementById('fullLocation').value,
+            description: document.getElementById('fullDescription').value,
+            completed: document.getElementById('fullCompleted').checked,
+            isRecurrent: isRec,
+            recurrence: isRec ? {
+              freq: document.getElementById('fullRecurrenceFreq').value,
+              until: document.getElementById('fullRecurrenceUntil').value
+            } : null
+          };
+
+          if (id) {
+            const idx = state.activities.findIndex(a => a.id === id);
+            if (idx !== -1) state.activities[idx] = actData;
+          } else {
+            state.activities.push(actData);
+          }
+
+          Storage.save();
+          App.closeFullModal();
+          App.renderAll();
+        };
+
+        document.getElementById('btnDeleteActivity').onclick = () => {
+          const id = document.getElementById('fullActivityId').value;
+          if (id) {
+            UndoManager.pushState('Atividade excluída.');
+            state.activities = state.activities.filter(a => a.id !== id);
+            Storage.save();
+            App.closeFullModal();
+            App.renderAll();
+          }
+        };
+
+        document.getElementById('btnDuplicateActivity').onclick = () => {
+          const id = document.getElementById('fullActivityId').value;
+          const original = state.activities.find(a => a.id === id);
+          if (original) {
+            UndoManager.pushState('Atividade duplicada.');
+            const copy = { ...original, id: 'act_' + Date.now(), title: original.title + ' (Cópia)' };
+            state.activities.push(copy);
+            Storage.save();
+            App.closeFullModal();
+            App.renderAll();
+          }
+        };
+
+        // Metas da Semana
+        document.getElementById('btnAddGoal').onclick = () => {
+          document.getElementById('goalId').value = '';
+          document.getElementById('goalTitle').value = '';
+          document.getElementById('goalModal').classList.remove('hidden');
+        };
+        document.getElementById('btnCloseGoalModal').onclick = () => document.getElementById('goalModal').classList.add('hidden');
+        document.getElementById('formGoal').onsubmit = (e) => {
+          e.preventDefault();
+          UndoManager.pushState('Meta da semana salva.');
+
+          const weekKey = DateUtils.getWeekKey(state.currentDate);
+          if (!state.weeklyGoals[weekKey]) state.weeklyGoals[weekKey] = [];
+
+          state.weeklyGoals[weekKey].push({
+            id: 'g_' + Date.now(),
+            title: document.getElementById('goalTitle').value,
+            priority: document.getElementById('goalPriority').value,
+            completed: false
+          });
+
+          Storage.save();
+          document.getElementById('goalModal').classList.add('hidden');
+          App.renderSidebar();
+        };
+
+        document.getElementById('goalsList').onclick = (e) => {
+          const weekKey = DateUtils.getWeekKey(state.currentDate);
+          if (e.target.classList.contains('goal-checkbox')) {
+            const id = e.target.dataset.id;
+            const goal = (state.weeklyGoals[weekKey] || []).find(g => g.id === id);
+            if (goal) {
+              goal.completed = e.target.checked;
+              Storage.save();
+              App.renderSidebar();
+            }
+          } else if (e.target.classList.contains('btnDeleteGoal')) {
+            const id = e.target.dataset.id;
+            state.weeklyGoals[weekKey] = (state.weeklyGoals[weekKey] || []).filter(g => g.id !== id);
+            Storage.save();
+            App.renderSidebar();
+          }
+        };
+
+        // Inbox Form
+        document.getElementById('formAddInbox').onsubmit = (e) => {
+          e.preventDefault();
+          const input = document.getElementById('inputInboxTitle');
+          if (!input.value.trim()) return;
+
+          UndoManager.pushState('Tarefa adicionada à Caixa de Entrada.');
+          state.inbox.push({
+            id: 'in_' + Date.now(),
+            title: input.value.trim(),
+            priority: 'medium'
+          });
+
+          input.value = '';
+          Storage.save();
+          App.renderSidebar();
+        };
+
+        document.getElementById('inboxList').onclick = (e) => {
+          if (e.target.classList.contains('btnDeleteInbox')) {
+            const id = e.target.dataset.id;
+            state.inbox = state.inbox.filter(i => i.id !== id);
+            Storage.save();
+            App.renderSidebar();
+          }
+        };
+
+        // Menu Dropdown & Outras Ferramentas
+        const dropdown = document.getElementById('dropdownMenu');
+        document.getElementById('btnMoreMenu').onclick = (e) => {
+          e.stopPropagation();
+          dropdown.classList.toggle('hidden');
+        };
+        document.addEventListener('click', () => dropdown.classList.add('hidden'));
+
+        document.getElementById('btnThemeToggle').onclick = () => {
+          const next = state.preferences.theme === 'system' ? 'dark' : state.preferences.theme === 'dark' ? 'light' : 'system';
+          App.applyTheme(next);
+          Storage.save();
+        };
+
+        document.getElementById('btnUndoToast').onclick = () => UndoManager.undo();
+
+        document.getElementById('btnExportData').onclick = () => {
+          const jsonStr = JSON.stringify(state, null, 2);
+          const blob = new Blob([jsonStr], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `chronos_plan_backup_${DateUtils.formatDateISO(new Date())}.json`;
+          a.click();
+        };
+
+        document.getElementById('importFileInput').onchange = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            try {
+              const imported = JSON.parse(evt.target.result);
+              if (imported.activities) state.activities = imported.activities;
+              if (imported.weeklyGoals) state.weeklyGoals = imported.weeklyGoals;
+              if (imported.inbox) state.inbox = imported.inbox;
+              Storage.save();
+              App.renderAll();
+              alert('Dados importados com sucesso!');
+            } catch(err) {
+              alert('Arquivo de backup inválido.');
+            }
+          };
+          reader.readAsText(file);
+        };
+
+        document.getElementById('btnLoadSample').onclick = () => {
+          if (confirm('Deseja carregar a rotina de exemplo? Isso adicionará novos compromissos.')) {
+            App.loadSampleData(true);
+          }
+        };
+
+        // Atalhos de Teclado Modal
+        document.getElementById('btnShortcutsHelp').onclick = () => document.getElementById('shortcutsModal').classList.remove('hidden');
+        document.getElementById('btnCloseShortcutsModal').onclick = () => document.getElementById('shortcutsModal').classList.add('hidden');
+
+        // Atalhos Globais de Teclado
+        document.addEventListener('keydown', (e) => {
+          if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+
+          if (e.key === 'n' || e.key === 'N') {
+            e.preventDefault();
+            App.openFullModal();
+          } else if (e.key === 't' || e.key === 'T') {
+            e.preventDefault();
+            state.currentDate = new Date();
+            App.renderAll();
+          } else if (e.key === 'f' || e.key === 'F') {
+            e.preventDefault();
+            document.getElementById('searchInput').focus();
+          } else if (e.key === 'd' || e.key === 'D') {
+            e.preventDefault();
+            document.getElementById('btnThemeToggle').click();
+          } else if (e.key === 'Escape') {
+            App.closeQuickModal();
+            App.closeFullModal();
+            document.getElementById('goalModal').classList.add('hidden');
+            document.getElementById('shortcutsModal').classList.add('hidden');
+          } else if (e.key === '?') {
+            document.getElementById('shortcutsModal').classList.remove('hidden');
+          } else if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
+            e.preventDefault();
+            UndoManager.undo();
+          }
+        });
+      }
+    };
+
+    // Inicializar no carregamento da página
+    document.addEventListener('DOMContentLoaded', () => App.init());
+  </script>
+</body>
+</html>
